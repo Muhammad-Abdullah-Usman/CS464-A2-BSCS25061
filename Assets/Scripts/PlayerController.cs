@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
@@ -12,18 +13,26 @@ public class PlayerController : MonoBehaviour
     [SerializeField] float jumpBuffer = 0.12f;
     [SerializeField] float fallMultiplier = 2.2f;
 
+    [Header("Landing Juice")]
+    [SerializeField] Transform body;
+    [SerializeField] float squashDuration = 0.18f;
+    [SerializeField] float squashY = 0.7f;
+
     Rigidbody rb;
     Transform cam;
-
     Vector3 move;
-
     bool isGrounded;
     bool jumpQueued;
 
     float lastGroundedTime = -1f;
     float lastPressedTime = -1f;
 
-    // Used for the visible ground-check gizmo
+    // Landing detection
+    bool wasGrounded;
+    float airStartTime = -1f;
+    Coroutine squashRoutine;
+
+    // Used for the visible ground check gizmo
     Vector3 lastGroundPoint;
     Vector3 lastGroundNormal = Vector3.up;
     bool hasGroundContact;
@@ -38,6 +47,12 @@ public class PlayerController : MonoBehaviour
         if (Camera.main != null)
         {
             cam = Camera.main.transform;
+        }
+
+        // Automatically find the Body child if not assigned
+        if (body == null)
+        {
+            body = transform.Find("Body");
         }
     }
 
@@ -105,6 +120,34 @@ public class PlayerController : MonoBehaviour
             lastGroundedTime = -1f;
             lastPressedTime = -1f;
         }
+
+        // LANDING JUICE
+        // Just left the ground
+        if (!isGrounded && wasGrounded)
+        {
+            airStartTime = Time.time;
+        }
+
+        // Just landed
+        if (isGrounded && !wasGrounded)
+        {
+            float airTime = Time.time - airStartTime;
+
+            // Only squash after a real landing
+            if (airStartTime >= 0f && airTime > 0.1f)
+            {
+                if (squashRoutine != null)
+                {
+                    StopCoroutine(squashRoutine);
+                }
+
+                squashRoutine = StartCoroutine(Squash());
+            }
+
+            airStartTime = -1f;
+        }
+
+        wasGrounded = isGrounded;
     }
 
     void FixedUpdate()
@@ -167,6 +210,48 @@ public class PlayerController : MonoBehaviour
                 break;
             }
         }
+    }
+
+    IEnumerator Squash()
+    {
+        if (body == null)
+        {
+            yield break;
+        }
+
+        // Preserve roughly the same volume.
+        // At Y = 0.7, X/Z are about 1.2.
+        float xzScale = 1f / Mathf.Sqrt(squashY);
+
+        Vector3 squashedScale = new Vector3(
+            xzScale,
+            squashY,
+            xzScale
+        );
+
+        for (float elapsed = 0f;
+             elapsed < squashDuration;
+             elapsed += Time.deltaTime)
+        {
+            float t = elapsed / squashDuration;
+
+            // Back easing curve
+            float p = Ease.OutBack(t);
+
+            // OutBack goes above 1, so use LerpUnclamped.
+            body.localScale = Vector3.LerpUnclamped(
+                squashedScale,
+                Vector3.one,
+                p
+            );
+
+            yield return null;
+        }
+
+        // Always finish exactly at rest.
+        body.localScale = Vector3.one;
+
+        squashRoutine = null;
     }
 
     void OnDrawGizmosSelected()
