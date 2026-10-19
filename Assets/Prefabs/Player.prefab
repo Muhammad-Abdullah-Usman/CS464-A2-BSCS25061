@@ -102,6 +102,9 @@ MonoBehaviour:
   coyoteTime: 0.1
   jumpBuffer: 0.12
   fallMultiplier: 2.2
+  body: {fileID: 4479485898200350097}
+  squashDuration: 0.18
+  squashY: 0.7
 --- !u!1 &5652562164182966730
 GameObject:
   m_ObjectHideFlags: 0
